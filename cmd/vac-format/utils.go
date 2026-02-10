@@ -7,7 +7,7 @@ import (
 )
 
 func usage() {
-	fmt.Println("CipherSong VAC CLI v2.0 - NO TOTP ✅")
+	fmt.Println("Vitakrypt Audio Codec (VAC) CLI v1.0")
 	fmt.Println("Commands:")
 	fmt.Println("  vac encode -flac <file|folder> [-output <file|folder>] [-batch]")
 	fmt.Println("  vac play <file.vac> [-player ffplay|vlc|mpv]")

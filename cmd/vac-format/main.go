@@ -7,6 +7,7 @@ import (
 	"strings"
 )
 
+
 const (
 	magicNumber    = "CSNG"
 	versionNumber  = uint32(1)
