@@ -127,7 +127,7 @@ vac info "./albums/song.vac"
 
 ## Optional GUI / Terminal Player
 
-If you prefer a **terminal-based interface** to browse, queue, and play `.vac` files interactively, you can use **CipherSong VAC Player**.
+If you prefer a **terminal-based interface** to browse, queue, and play `.vac` files interactively, you can use **VAC Player**.
 
 * Built with **Textual**, it allows you to:
 
@@ -137,26 +137,8 @@ If you prefer a **terminal-based interface** to browse, queue, and play `.vac` f
   * Skip or remove songs on-the-fly
 * Integrates with the VAC CLI and supports **mpv, VLC, or ffplay**.
 
-**Installation & Usage:**
+**GitHub Repository:** [CipherSong VAC Player](https://github.com/thenatespack/vac-player)
 
-```bash
-git clone https://github.com/yourusername/ciphersong-vac-player.git
-cd ciphersong-vac-player
-pip install textual
-python main.py <path_to_vac_library>
-```
-
-**GitHub Repository:** [CipherSong VAC Player](https://github.com/thenatespack/ciphersong-vac-player)
-
-**Keyboard Shortcuts:**
-
-* `q` – Quit
-* `r` – Refresh library
-* `e` – Enqueue selected song
-* `d` – Delete from queue
-* `n` – Play next
-* `a` – Play all queued songs
-* `s` – Skip current song
 
 ---
 
