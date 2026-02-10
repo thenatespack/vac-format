@@ -137,7 +137,7 @@ If you prefer a **terminal-based interface** to browse, queue, and play `.vac` f
   * Skip or remove songs on-the-fly
 * Integrates with the VAC CLI and supports **mpv, VLC, or ffplay**.
 
-**GitHub Repository:** [CipherSong VAC Player](https://github.com/thenatespack/vac-player)
+**GitHub Repository:** [VAC Player](https://github.com/thenatespack/vac-player)
 
 
 ---
