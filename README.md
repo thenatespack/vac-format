@@ -1,6 +1,3 @@
-Absolutely! Here’s the **Markdown version** of your README with proper formatting for GitHub or any Markdown viewer. I’ve kept all the Vitakrypt branding:
-
-````markdown
 # Vitakrypt Audio Codec (VAC) CLI v2.0
 
 Vitakrypt Audio Codec (VAC) is a lightweight command-line tool for encoding FLAC files into an encrypted VAC format, inspecting metadata, and playing them securely. This version uses **single-passphrase AES-GCM encryption** and does not require TOTP.
