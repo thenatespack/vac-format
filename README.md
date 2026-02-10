@@ -146,7 +146,7 @@ pip install textual
 python main.py <path_to_vac_library>
 ```
 
-**GitHub Repository:** [CipherSong VAC Player](https://github.com/natespack/ciphersong-vac-player)
+**GitHub Repository:** [CipherSong VAC Player](https://github.com/thenatespack/ciphersong-vac-player)
 
 **Keyboard Shortcuts:**
 
