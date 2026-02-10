@@ -1,6 +1,6 @@
-# Vitakrypt Audio Codec (VAC) CLI v2.0
+# Vitakrypt Audio Codec (VAC) CLI v1.0
 
-Vitakrypt Audio Codec (VAC) is a lightweight command-line tool for encoding FLAC files into an encrypted VAC format, inspecting metadata, and playing them securely. This version uses **single-passphrase AES-GCM encryption** and does not require TOTP.
+Vitakrypt Audio Codec (VAC) is a lightweight command-line tool for encoding FLAC files into an encrypted VAC format, inspecting metadata, and playing them securely. This version uses **single-passphrase AES-GCM encryption**. I'm going to be using it in my Capstone audio streamer for allowing users to download music without risiking piracy.
 
 ---
 
@@ -16,6 +16,10 @@ Vitakrypt Audio Codec (VAC) is a lightweight command-line tool for encoding FLAC
 ---
 
 ## Installation
+
+Visit Realeases To Download binary based on platform
+
+### Build From Source
 
 1. Clone the repository:
 
@@ -132,4 +136,4 @@ vac info "./albums/song.vac"
 
 ## License
 
-MIT License © 2026
+GNU License
