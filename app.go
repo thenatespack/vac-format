@@ -17,9 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strings"
-	"bufio"
 
 	"github.com/dhowden/tag"
 )
@@ -31,7 +29,7 @@ const (
 	strFieldLength = 64
 )
 
-const headerSize = 4 + 4 + 4 + strFieldLength*3 + 8 + 4 + 4 + 4
+const headerSize = 4 + 4 + 4 + strFieldLength*3 + 8 + 4 + 4 + 4 // TOTP field removed
 
 type Player interface {
 	Play(io.Reader) error
@@ -41,7 +39,7 @@ type FFPlayPlayer struct{}
 type VLCPlayer struct{}
 type MPVPlayer struct{}
 
-// SINGLE PASSPHRASE - DEFAULT "hello mario"
+// 🔥 SINGLE PASSPHRASE - DEFAULT "hello mario"
 var passphrase = "hello mario"
 var batchMode bool
 
@@ -74,11 +72,12 @@ func main() {
 
 	case "play":
 		playCmd := flag.NewFlagSet("play", flag.ExitOnError)
-		inputPath := playCmd.String("file", "", "VAC file or folder")
+		vacFile := playCmd.String("file", "", "Path to VAC file")
 		playerName := playCmd.String("player", detectDefaultPlayer(), "Player: ffplay, vlc, mpv")
-		shuffleFlag := playCmd.Bool("shuffle", false, "Shuffle playlist")
 		playCmd.Parse(os.Args[2:])
-
+		if *vacFile == "" {
+			*vacFile = os.Args[2]
+		}
 		var player Player
 		switch strings.ToLower(*playerName) {
 		case "vlc":
@@ -88,17 +87,9 @@ func main() {
 		default:
 			player = FFPlayPlayer{}
 		}
-
-		if *inputPath == "" {
-			interactivePlay(player)
-		} else if isDir(*inputPath) {
-			playlist := scanVacFolder(*inputPath, *shuffleFlag)
-			playPlaylist(playlist, player)
-		} else {
-			err := Play(*inputPath, player)
-			if err != nil {
-				log.Fatal(err)
-			}
+		err := Play(*vacFile, player)
+		if err != nil {
+			log.Fatal(err)
 		}
 
 	case "info":
@@ -113,15 +104,14 @@ func main() {
 }
 
 func usage() {
-	fmt.Println("CipherSong VAC CLI v2.2 - AUTO-PLAY 🎧")
+	fmt.Println("CipherSong VAC CLI v2.0 - NO TOTP ✅")
 	fmt.Println("Commands:")
-	fmt.Println("  encode -flac <file|folder> [-output <folder>] [-batch]          Encode FLAC to VAC")
-	fmt.Println("  play [<folder>|file.vac] [-player ffplay|vlc|mpv] [-shuffle]    Auto-play folder/single")
-	fmt.Println("  info <file.vac>                                                 Show VAC file info")
-	fmt.Println("\n🚀 Auto-play examples:")
-	fmt.Println("  ./vac play ~/vac_songs/                    # Play ALL 322 songs!")
-	fmt.Println("  ./vac play ~/vac_songs/ -shuffle          # Shuffle 322 songs")
-	fmt.Println("  ./vac play song.vac                       # Single file")
+	fmt.Println("  encode -flac <file|folder> [-output <file|folder>] [-batch]  Encode FLAC to VAC")
+	fmt.Println("  play <file.vac> [-player ffplay|vlc|mpv]                       Play VAC file")
+	fmt.Println("  info <file.vac>                                              Show VAC file info")
+	fmt.Println("\nFlags:")
+	fmt.Println("  -passphrase <pass>    Encryption passphrase (default: hello mario)")
+	fmt.Println("  -batch                Process folder (FLAC files only)")
 	os.Exit(1)
 }
 
@@ -146,6 +136,7 @@ func isDir(path string) bool {
 	return err == nil && info.IsDir()
 }
 
+// BATCH ENCODE
 func batchEncode(inputDir, outputDir string) {
 	fmt.Printf("🎵 BATCH MODE: Processing folder %s\n", inputDir)
 	
@@ -203,8 +194,8 @@ func encode(flacPath, outPath string) {
 		outPath = strings.TrimSuffix(flacPath, ".flac") + ".vac"
 	}
 	
-	fmt.Printf("🔍 Encoding with passphrase: '%s' (%d chars)\n", passphrase, len(passphrase))
 	keyBytes := deriveKey([]byte(passphrase))
+	fmt.Printf("🔍 Encoding with passphrase: '%s' (%d chars)\n", passphrase, len(passphrase))
 	fmt.Printf("🔑 Derived key: %x\n", keyBytes[:16])
 	
 	fmt.Printf("Encoding %s → %s\n", flacPath, outPath)
@@ -215,6 +206,7 @@ func encode(flacPath, outPath string) {
 	fmt.Printf("\n✅ Created: %s\n", outPath)
 	fmt.Printf("🔑 Key (Base64): %s\n", base64.StdEncoding.EncodeToString(keyBytes))
 }
+
 
 func readFlacMetadata(path string) (title, artist, album string, duration float64, bitrate, sampleRate, track, totalSamples int) {
 	f, err := os.Open(path)
@@ -267,4 +259,273 @@ func createVacFile(flacPath, outPath string, key []byte, title, artist, album st
 
 	encData, err := encrypt(data, key)
 	if err != nil {
-		return
+		return err
+	}
+
+	_, err = out.Write(encData)
+	return err
+}
+
+func createHeader(title, artist, album string, duration float64, bitrate, sampleRate, track int) []byte {
+	buf := make([]byte, headerSize)
+	
+	copy(buf[0:4], []byte(magicNumber))
+	binary.BigEndian.PutUint32(buf[4:8], versionNumber)
+	binary.BigEndian.PutUint32(buf[8:12], keySizeBytes)
+
+	offset := 12
+	copy(buf[offset:offset+strFieldLength], padOrTrim(title, strFieldLength))
+	offset += strFieldLength
+	copy(buf[offset:offset+strFieldLength], padOrTrim(artist, strFieldLength))
+	offset += strFieldLength
+	copy(buf[offset:offset+strFieldLength], padOrTrim(album, strFieldLength))
+	offset += strFieldLength
+	binary.BigEndian.PutUint64(buf[offset:offset+8], math.Float64bits(duration))
+	offset += 8
+	binary.BigEndian.PutUint32(buf[offset:offset+4], uint32(bitrate))
+	offset += 4
+	binary.BigEndian.PutUint32(buf[offset:offset+4], uint32(sampleRate))
+	offset += 4
+	binary.BigEndian.PutUint32(buf[offset:offset+4], uint32(track))
+
+	return buf
+}
+
+func padOrTrim(s string, length int) []byte {
+	if len(s) > length {
+		return []byte(s[:length])
+	}
+	padded := make([]byte, length)
+	copy(padded, s)
+	return padded
+}
+
+func deriveKey(pass []byte) []byte {
+	h := sha512.New()
+	h.Write(pass)
+	return h.Sum(nil)[:keySizeBytes]
+}
+
+func Play(path string, player Player) error {
+	fmt.Printf("🔍 Using passphrase: '%s' (%d chars)\n", passphrase, len(passphrase))
+	keyBytes := deriveKey([]byte(passphrase))
+	fmt.Printf("🔑 Derived key: %x\n", keyBytes[:16])
+
+	// 🔥 READ ENTIRE FILE AT ONCE
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	
+	fmt.Printf("📦 Total file: %d bytes\n", len(data))
+	
+	// 🔥 PARSE HEADER FROM BEGINNING OF FILE
+	if len(data) < headerSize {
+		return fmt.Errorf("file too short for header")
+	}
+	
+	headerBytes := data[:headerSize]
+	if string(headerBytes[:4]) != magicNumber {
+		return fmt.Errorf("not a VAC file")
+	}
+
+	// Parse header fields
+	offset := 12
+	title := strings.TrimRight(string(headerBytes[offset:offset+strFieldLength]), "\x00")
+	offset += strFieldLength
+	artist := strings.TrimRight(string(headerBytes[offset:offset+strFieldLength]), "\x00")
+	offset += strFieldLength
+	album := strings.TrimRight(string(headerBytes[offset:offset+strFieldLength]), "\x00")
+	offset += strFieldLength
+	encData := data[headerSize:]
+	fmt.Printf("🔓 Decrypting %d bytes of encrypted data (nonce=%d)\n", len(encData), 12)
+	
+	decrypted, err := decrypt(encData, keyBytes)
+	if err != nil {
+		return fmt.Errorf("audio decryption failed: %w", err)
+	}
+
+	fmt.Printf("✅ SUCCESS - Decrypted %d bytes\n", len(decrypted))
+	fmt.Printf("🎵 Playing: %s - %s (%s)\n", title, artist, album)
+	return player.Play(bytes.NewReader(decrypted))
+}
+
+
+func gcmNonceSize() int {
+	block, _ := aes.NewCipher(make([]byte, 32))
+	gcm, _ := cipher.NewGCM(block)
+	return gcm.NonceSize()
+}
+
+
+
+type VacHeader struct {
+	title, artist, album string
+	duration    float64
+	bitrate, sampleRate, track int
+}
+
+
+func readHeader(path string) (*VacHeader, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	header := make([]byte, headerSize)  // 252 bytes
+	if _, err := io.ReadFull(f, header); err != nil {
+		return nil, err
+	}
+	
+	if string(header[:4]) != magicNumber {
+		return nil, fmt.Errorf("not a VAC file")
+	}
+
+	// 🔥 FIXED: Start at CORRECT offset (skip magic+version+keysize = 12 bytes)
+	offset := 12
+	title := strings.TrimRight(string(header[offset:offset+strFieldLength]), "\x00")
+	offset += strFieldLength
+	artist := strings.TrimRight(string(header[offset:offset+strFieldLength]), "\x00")
+	offset += strFieldLength
+	album := strings.TrimRight(string(header[offset:offset+strFieldLength]), "\x00")
+	offset += strFieldLength
+	duration := math.Float64frombits(binary.BigEndian.Uint64(header[offset : offset+8]))
+	offset += 8
+	bitrate := int(binary.BigEndian.Uint32(header[offset : offset+4]))
+	offset += 4
+	sampleRate := int(binary.BigEndian.Uint32(header[offset : offset+4]))
+	offset += 4
+	track := int(binary.BigEndian.Uint32(header[offset : offset+4]))
+
+	return &VacHeader{
+		title:       title,
+		artist:      artist,
+		album:       album,
+		duration:    duration,
+		bitrate:     bitrate,
+		sampleRate:  sampleRate,
+		track:       track,
+	}, nil
+}
+
+
+
+// Player implementations
+func (FFPlayPlayer) Play(r io.Reader) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	tmpfile, err := os.CreateTemp("", "vac-*.flac")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+	
+	if _, err := tmpfile.Write(data); err != nil {
+		return err
+	}
+	
+	cmd := exec.Command("ffplay", "-nodisp", "-autoexit", tmpfile.Name())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func (VLCPlayer) Play(r io.Reader) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	tmpfile, err := os.CreateTemp("", "vac-*.flac")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+	
+	if _, err := tmpfile.Write(data); err != nil {
+		return err
+	}
+	
+	cmd := exec.Command("vlc", "--play-and-exit", tmpfile.Name())
+	return cmd.Run()
+}
+
+func (MPVPlayer) Play(r io.Reader) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	tmpfile, err := os.CreateTemp("", "vac-*.flac")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+	
+	if _, err := tmpfile.Write(data); err != nil {
+		return err
+	}
+	
+	cmd := exec.Command("mpv", "--no-video", "--no-terminal", tmpfile.Name())
+	return cmd.Run()
+}
+
+func info(path string) {
+	fi, err := os.Stat(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	header, err := readHeader(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("🎵 CipherSong VAC v%d\n", versionNumber)
+	fmt.Printf("📁 File: %s (%.2f MB)\n", path, float64(fi.Size())/1024/1024)
+	fmt.Printf("🎤 Title: %s\n", header.title)
+	fmt.Printf("👤 Artist: %s\n", header.artist)
+	fmt.Printf("💿 Album: %s\n", header.album)
+	fmt.Printf("🎼 Track: %d\n", header.track)
+	fmt.Printf("⏱️  Duration: %.2fs\n", header.duration)
+	fmt.Printf("🔊 Bitrate: %d kbps\n", header.bitrate)
+	fmt.Printf("📊 Sample Rate: %d Hz\n", header.sampleRate)
+}
+
+func encrypt(plain, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return nil, err
+	}
+	return gcm.Seal(nonce, nonce, plain, nil), nil
+}
+
+func decrypt(ciphertext, key []byte) ([]byte, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return nil, err
+	}
+	nonceSize := gcm.NonceSize()
+	if len(ciphertext) < nonceSize {
+		return nil, fmt.Errorf("ciphertext too short")
+	}
+	nonce := ciphertext[:nonceSize]
+	data := ciphertext[nonceSize:]
+	return gcm.Open(nil, nonce, data, nil)
+}
