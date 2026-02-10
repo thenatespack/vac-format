@@ -136,4 +136,4 @@ vac info "./albums/song.vac"
 
 ## License
 
-MIT License © 2026
+GNU License
